@@ -2,8 +2,9 @@ import flet as ft
 
 
 class Status_Selection:
-        def dropdown():
-            status_dropdown = ft.Dropdown(
+    @staticmethod
+    def dropdown():
+        return ft.Dropdown(   # <-- agora ele devolve o componente
             label="Status",
             border_color=ft.Colors.WHITE,
             label_style=ft.TextStyle(color=ft.Colors.WHITE, size=12),
@@ -31,18 +32,6 @@ class Status_Selection:
                         alignment=ft.MainAxisAlignment.START
                     )
                 ),
-                # ft.dropdown.Option(
-                #     text="Baixado/Perdido",
-                #     content=ft.Row(
-                #         controls=[
-                #             ft.Icon(ft.Icons.DELETE, color=ft.Colors.GREY),
-                #             ft.Text("Baixado/Perdido", color=ft.Colors.WHITE, size=12)
-                #         ],
-                #         alignment=ft.MainAxisAlignment.START
-                #     )
-                # ),
-
-                
                 ft.dropdown.Option(
                     text="Procurar",
                     content=ft.Row(

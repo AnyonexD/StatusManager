@@ -16,7 +16,8 @@ import time
 import threading
 import webbrowser
 import numpy as np
-import Dropdown
+from Dropdown import Status_Selection
+
 
 # Detecta se está rodando dentro de um executável PyInstaller
 if hasattr(sys, '_MEIPASS'):
@@ -76,7 +77,7 @@ def main(page: ft.Page):
     )
     
     # Dropdown de status
-    Status_Selection.dropdown()
+    status_dropdown = Status_Selection.dropdown()
     
     # Checkbox de "Lembrar Usuário e Senha"
     remember_checkbox = ft.Checkbox(
