@@ -16,7 +16,7 @@ import time
 import threading
 import webbrowser
 import numpy as np
-from Dropdown import Status_Selection
+from classes import *
 
 
 # Detecta se está rodando dentro de um executável PyInstaller
@@ -56,26 +56,10 @@ def main(page: ft.Page):
         weight=ft.FontWeight.NORMAL
     )
     
-    # Criando campos de texto
-    login_field = ft.TextField(
-        label='Login',
-        border_color=ft.Colors.WHITE,
-        label_style=ft.TextStyle(color=ft.Colors.WHITE, size=12),
-        color=ft.Colors.WHITE,
-        prefix_icon=ft.Icons.PERSON,
-        width=280
-    )
-    
-    password_field = ft.TextField(
-        label='Senha',
-        border_color=ft.Colors.WHITE,
-        label_style=ft.TextStyle(color=ft.Colors.WHITE, size=12),
-        color=ft.Colors.WHITE,
-        password=True,
-        prefix_icon=ft.Icons.LOCK,
-        width=280
-    )
-    
+    #Login&Senha
+    login_field = Login_and_pass.login()
+    password_field = Login_and_pass.password()
+
     # Dropdown de status
     status_dropdown = Status_Selection.dropdown()
     
@@ -787,16 +771,41 @@ def main(page: ft.Page):
     
     # Botão "Fazer Login"
     
-    login_button = ft.ElevatedButton(
-        text="Fazer Login",
-        style=ft.ButtonStyle(
-            bgcolor='#0e1111',
-            color=ft.Colors.YELLOW_700,
-            text_style=ft.TextStyle(size=15)
-        ),
-        on_click=login_function,
-        width=325,
+    def login_function(e):
+        # Animação do botão
+        login_button.bgcolor = ft.colors.YELLOW_700
+        login_button.content.controls[0].color = ft.colors.BLACK  # ícone
+        login_button.content.controls[1].color = ft.colors.BLACK  # texto
+        login_button.border = ft.border.all(2, ft.colors.YELLOW_700)
+        page.update()
+        
+        # Volta ao estado original após animação
+        def reset(_):
+            login_button.bgcolor = ft.colors.TRANSPARENT
+            login_button.content.controls[0].color = ft.colors.YELLOW_700
+            login_button.content.controls[1].color = ft.colors.YELLOW_700
+            login_button.border = ft.border.all(2, ft.colors.YELLOW_700)
+            page.update()
+        
+        page.run_task(lambda: page.timer(0.25, reset))
+        
+        # Executar o processo de login em uma thread separada
+        threading.Thread(target=process_login, daemon=True).start()
+    
+    # Criação do botão de login (usando o estilo minimalista)
+    login_button = ft.Container(
+        content=ft.Row([
+            ft.Icon(ft.icons.ARROW_FORWARD, color=ft.colors.YELLOW_700, size=18),
+            ft.Text("Entrar", size=16, color=ft.colors.YELLOW_700, weight=ft.FontWeight.W_500)
+        ], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
+        width=300,
         height=45,
+        bgcolor=ft.colors.TRANSPARENT,
+        border=ft.border.all(2, ft.colors.YELLOW_700),
+        border_radius=8,
+        alignment=ft.alignment.center,
+        animate=ft.animation.Animation(250, "easeInOut"),
+        on_click=login_function
     )
     
     # Container para o contador de progresso
