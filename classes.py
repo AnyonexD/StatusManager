@@ -72,7 +72,7 @@ class Login_and_pass():
         )
     
 class Logger_Manager():
-    def __init__(self, log_file="meu_app.log"):
+    def __init__(self, log_file="SM.log"):
         # Cria logger
         self.logger = logging.getLogger("MeuLogger")
         self.logger.setLevel(logging.INFO)

@@ -33,10 +33,11 @@ CAMINHO_DADOS = BASE_DIR / 'dados'
 CAMINHO_SAIDA = Path(__file__).resolve().parent / 'saida'
 
 # Função de log para diagnóstico
-def save_log(message):
-    log_path = os.path.join(os.path.expanduser("~"), "robos_log.txt")
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')} - {message}\n")
+
+# def logger.info(message):
+#     log_path = os.path.join(os.path.expanduser("~"), "robos_log.txt")
+#     with open(log_path, "a", encoding="utf-8") as f:
+#         f.write(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')} - {message}\n")
 
 def main(page: ft.Page):
     # Configurações da janela - Centralizando na tela
@@ -47,6 +48,9 @@ def main(page: ft.Page):
     page.adaptive, page.padding = True, 0
     page.window.icon = os.path.join(os.path.dirname(__file__), "assets", "desk_logo.ico")
     page.title = "StatusManager"
+
+    # Inicializar o logger
+    logger = Logger_Manager("robos_log.txt")
     
     # Contador de progresso
     progress_counter = ft.Text(
@@ -74,7 +78,7 @@ def main(page: ft.Page):
     def save_credentials(username, password, remember=False):
         if remember and username and password:
             userdir_get = os.path.expanduser("~")
-            save_log(f"Tentando salvar credenciais para o usuário: {username}")
+            logger.info(f"Tentando salvar credenciais para o usuário: {username}")
             
             # Tentar vários possíveis caminhos para o OneDrive
             possible_paths = [
@@ -90,7 +94,7 @@ def main(page: ft.Page):
             for path in possible_paths:
                 if os.path.exists(path):
                     robos_path = path
-                    save_log(f"Diretório Robos encontrado: {robos_path}")
+                    logger.info(f"Diretório Robos encontrado: {robos_path}")
                     break
             
             if robos_path is None:
@@ -98,10 +102,10 @@ def main(page: ft.Page):
                     # Cria um diretório padrão se nenhum for encontrado
                     robos_path = os.path.join(userdir_get, "Desktop", "Robos")
                     os.makedirs(robos_path, exist_ok=True)
-                    save_log(f"Diretório Robos criado: {robos_path}")
+                    logger.info(f"Diretório Robos criado: {robos_path}")
                 except Exception as e:
                     error_msg = f"Erro ao criar diretório para credenciais: {str(e)}"
-                    save_log(error_msg)
+                    logger.error(error_msg)
                     py.alert("Erro: Não foi possível encontrar o diretório de trabalho")
                     return False
             
@@ -109,10 +113,10 @@ def main(page: ft.Page):
             if not os.path.exists(logins_dir):
                 try:
                     os.makedirs(logins_dir)
-                    save_log(f"Diretório .Logins criado: {logins_dir}")
+                    logger.info(f"Diretório .Logins criado: {logins_dir}")
                 except Exception as e:
                     error_msg = f"Erro ao criar diretório .Logins: {str(e)}"
-                    save_log(error_msg)
+                    logger.error(error_msg)
                     return False
             
             login_encoded = base64.b64encode(username.encode('utf-8')).decode('utf-8')
@@ -131,7 +135,7 @@ def main(page: ft.Page):
                                     existing_vars[key] = value
                 except Exception as e:
                     error_msg = f"Erro ao ler arquivo .env existente: {str(e)}"
-                    save_log(error_msg)
+                    logger.error(error_msg)
             
             existing_vars["LOGINADM"] = login_encoded
             existing_vars["SENHAADM"] = password_encoded
@@ -140,18 +144,18 @@ def main(page: ft.Page):
                 with open(env_path, "w") as f:
                     for key, value in existing_vars.items():
                         f.write(f"{key}={value}\n")
-                save_log("Credenciais salvas com sucesso")
+                logger.info("Credenciais salvas com sucesso")
                 return True
             except Exception as e:
                 error_msg = f"Erro ao salvar credenciais: {str(e)}"
-                save_log(error_msg)
+                logger.error(error_msg)
                 return False
         return False
     
     # Função para carregar credenciais salvas
     def load_saved_credentials():
         userdir_get = os.path.expanduser("~")
-        save_log("Tentando carregar credenciais salvas")
+        logger.info("Tentando carregar credenciais salvas")
         
         possible_logins_paths = [
             os.path.join(userdir_get, "OneDrive - Desktop Sigmanet", "Área de Trabalho", "Robos", ".Logins"),
@@ -163,10 +167,10 @@ def main(page: ft.Page):
         ]
         
         for path in possible_logins_paths:
-            save_log(f"Verificando pasta de credenciais: {path}")
+            logger.info(f"Verificando pasta de credenciais: {path}")
             env_path = os.path.join(path, ".env")
             if os.path.exists(env_path):
-                save_log(f"Arquivo .env encontrado: {env_path}")
+                logger.info(f"Arquivo .env encontrado: {env_path}")
                 try:
                     load_dotenv(dotenv_path=env_path, override=True)
                     login_adm = os.getenv("LOGINADM")
@@ -179,28 +183,28 @@ def main(page: ft.Page):
                             login_field.value = login_decoded
                             password_field.value = senha_decoded
                             remember_checkbox.value = True
-                            save_log("Credenciais carregadas com sucesso")
+                            logger.info("Credenciais carregadas com sucesso")
                             return True
                         except Exception as e:
                             error_msg = f"Erro ao decodificar credenciais: {str(e)}"
-                            save_log(error_msg)
+                            logger.error(error_msg)
                 except Exception as e:
                     error_msg = f"Erro ao carregar arquivo .env: {str(e)}"
-                    save_log(error_msg)
+                    logger.error(error_msg)
         
-        save_log("Nenhuma credencial salva encontrada")
+        logger.info("Nenhuma credencial salva encontrada")
         return False
     
     # Função para abrir o WhatsApp
     def open_whatsapp(e):
         # Substitua o número abaixo pelo seu número de WhatsApp no formato internacional
         webbrowser.open('https://wa.me/5519920026971')
-        save_log("Link do WhatsApp aberto")
+        logger.info("Link do WhatsApp aberto")
     
     # Função para abrir a pasta do projeto
     def open_project_folder(e):
         userdir_get = os.path.expanduser("~")
-        save_log("Tentando abrir pasta do projeto")
+        logger.info("Tentando abrir pasta do projeto")
         
         possible_paths = [
             os.path.join(userdir_get, "OneDrive - Desktop Sigmanet", "Área de Trabalho", "Robos", "Code", "Alteração"),
@@ -212,10 +216,10 @@ def main(page: ft.Page):
         ]
         
         for path in possible_paths:
-            save_log(f"Verificando pasta do projeto: {path}")
+            logger.info(f"Verificando pasta do projeto: {path}")
             if os.path.exists(path):
                 os.startfile(path)
-                save_log(f"Pasta do projeto aberta: {path}")
+                logger.info(f"Pasta do projeto aberta: {path}")
                 return
         
         # Se não encontrou, tenta criar
@@ -223,10 +227,10 @@ def main(page: ft.Page):
             default_path = os.path.join(userdir_get, "Desktop", "Robos", "Code", "Alteração")
             os.makedirs(default_path, exist_ok=True)
             os.startfile(default_path)
-            save_log(f"Pasta do projeto criada e aberta: {default_path}")
+            logger.info(f"Pasta do projeto criada e aberta: {default_path}")
         except Exception as e:
             error_msg = f"Erro ao abrir pasta do projeto: {str(e)}"
-            save_log(error_msg)
+            logger.error(error_msg)
             py.alert("Erro: Não foi possível encontrar ou criar o diretório do projeto")
     
     # Função para atualizar o contador de progresso na interface
@@ -258,7 +262,7 @@ def main(page: ft.Page):
             return
         
         userdir_get = os.path.expanduser("~")
-        save_log(f"Diretório do usuário: {userdir_get}")
+        logger.info(f"Diretório do usuário: {userdir_get}")
         
         # Tentar vários possíveis caminhos para o OneDrive
         possible_paths = [
@@ -272,10 +276,10 @@ def main(page: ft.Page):
 
         script_path = None
         for path in possible_paths:
-            save_log(f"Verificando caminho: {path} - Existe: {os.path.exists(path)}")
+            logger.info(f"Verificando caminho: {path} - Existe: {os.path.exists(path)}")
             if os.path.exists(path):
                 script_path = path
-                save_log(f"Caminho encontrado: {script_path}")
+                logger.info(f"Caminho encontrado: {script_path}")
                 break
 
         if script_path is None:
@@ -284,10 +288,10 @@ def main(page: ft.Page):
                 default_path = os.path.join(userdir_get, "Desktop", "Robos")
                 os.makedirs(default_path, exist_ok=True)
                 script_path = default_path
-                save_log(f"Criado caminho padrão: {script_path}")
+                logger.info(f"Criado caminho padrão: {script_path}")
             except Exception as e:
                 error_msg = f"Erro ao criar diretório: {str(e)}"
-                save_log(error_msg)
+                logger.info(error_msg)
                 py.alert(f'''Erro: Não foi possível encontrar ou criar o diretório
                          Crie ou mova esta pasta para uma na pasta de trabalho com o nome "Robos"''')
                 return
@@ -297,15 +301,15 @@ def main(page: ft.Page):
         if not os.path.exists(validation_dir):
             try:
                 os.makedirs(validation_dir, exist_ok=True)
-                save_log(f"Criado diretório de validação: {validation_dir}")
+                logger.info(f"Criado diretório de validação: {validation_dir}")
             except Exception as e:
                 error_msg = f"Erro ao criar diretório de validação: {str(e)}"
-                save_log(error_msg)
+                logger.info(error_msg)
                 py.alert("Erro: Não foi possível criar o diretório de validação")
                 return
         
         excel_path = os.path.join(validation_dir, "Dados.xlsx")
-        save_log(f"Caminho do Excel: {excel_path}")
+        logger.info(f"Caminho do Excel: {excel_path}")
         
         if not os.path.exists(excel_path):
             try:
@@ -314,10 +318,10 @@ def main(page: ft.Page):
                     "Ativo/Mac/Serie", "Tipo", "Horario Processado", "Ativo", "Antigo Status", "Observação"
                 ])
                 df.to_excel(excel_path, index=False)
-                save_log(f"Arquivo Excel criado: {excel_path}")
+                logger.info(f"Arquivo Excel criado: {excel_path}")
             except Exception as e:
                 error_msg = f"Erro ao criar arquivo Excel: {str(e)}"
-                save_log(error_msg)
+                logger.info(error_msg)
                 py.alert(f"Erro ao criar o arquivo Excel: {str(e)}")
                 return
         else:
@@ -331,7 +335,7 @@ def main(page: ft.Page):
         save_credentials(username, password, remember_checkbox.value)
         
         try:
-            save_log("Iniciando processo de automação com Chrome")
+            logger.info("Iniciando processo de automação com Chrome")
             chromedriver_autoinstaller.install()
             options = webdriver.ChromeOptions()
             options.add_experimental_option("detach", True)
@@ -345,7 +349,7 @@ def main(page: ft.Page):
             #----------------------------------------------------------------------------------------------Alterar essa Função------------------------------------------------------------------------------------------------------
             
             if not username or not password:
-                save_log("Credenciais não fornecidas, tentando carregar do arquivo")
+                logger.info("Credenciais não fornecidas, tentando carregar do arquivo")
                 logins_dir = os.path.join(script_path, ".Logins")
                 if os.path.exists(logins_dir):
                     os.chdir(logins_dir)
@@ -356,14 +360,14 @@ def main(page: ft.Page):
                     if login_adm and senha_adm:
                         login_decoded = base64.b64decode(login_adm).decode('utf-8')
                         senha_decoded = base64.b64decode(senha_adm).decode('utf-8')
-                        save_log("Credenciais carregadas do arquivo")
+                        logger.info("Credenciais carregadas do arquivo")
                     else:
-                        save_log("Credenciais não encontradas no arquivo")
+                        logger.info("Credenciais não encontradas no arquivo")
                         py.alert("Erro: Credenciais não encontradas")
                         chromedriver.quit()
                         return
                 else:
-                    save_log("Diretório de credenciais não encontrado")
+                    logger.info("Diretório de credenciais não encontrado")
                     py.alert("Erro: Credenciais não fornecidas")
                     chromedriver.quit()
                     return
@@ -375,10 +379,10 @@ def main(page: ft.Page):
             
             try:
                 tabela = pd.read_excel("Dados.xlsx")
-                save_log(f"Arquivo Excel lido com sucesso: {len(tabela)} linhas")
+                logger.info(f"Arquivo Excel lido com sucesso: {len(tabela)} linhas")
             except Exception as e:
                 error_msg = f"Erro ao ler arquivo Excel: {str(e)}"
-                save_log(error_msg)
+                logger.info(error_msg)
                 py.alert(f"Erro ao ler o arquivo Excel: {str(e)}")
                 chromedriver.quit()
                 return
@@ -391,7 +395,7 @@ def main(page: ft.Page):
             update_progress(current_row, total_rows)
             
             chromedriver.get("http://adm.desktop.com.br/login.jsp?")   
-            save_log("Acessando o SSO")
+            logger.info("Acessando o SSO")
             # wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/table[2]/tbody/tr[6]/td/table/tbody/tr[1]/td[2]/font/input'))).send_keys(login_decoded)
             # wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/table[2]/tbody/tr[6]/td/table/tbody/tr[2]/td[2]/font/input'))).send_keys(senha_decoded)
             wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/table[2]/tbody/tr[9]/td/button"))).click()
@@ -399,12 +403,12 @@ def main(page: ft.Page):
             wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[type="password"]'))).send_keys(senha_decoded)
             wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[type="submit"]'))).click()
 
-            save_log("Aguardando o input do usuário...")
+            logger.info("Aguardando o input do usuário...")
             
             current_url = chromedriver.current_url
             if current_url.startswith("https://desktop.sso.e-trust.com.br/user/dashboard/"):
                 pass
-                save_log("Já na página dashboard, continuando...")
+                logger.info("Já na página dashboard, continuando...")
             
             else:
             
@@ -434,20 +438,20 @@ def main(page: ft.Page):
                 wait.until(EC.url_matches("https://adm.desktop.com.br/menu.jsp"))
                 wait = WebDriverWait(chromedriver, 30)
             except Exception as e:
-                save_log(f"Houve um erro durante o login: {e}")
+                logger.info(f"Houve um erro durante o login: {e}")
                 wait = WebDriverWait(chromedriver, 30)
 
                 chromedriver.quit()
                 exit()
 
-            save_log("Login realizado, aguardando carregamento da página")
+            logger.info("Login realizado, aguardando carregamento da página")
             chromedriver.get('https://adm.desktop.com.br/Ativos.jsp')
             # chromedriver.find_element(By.XPATH, "/html/body/table[2]/tbody/tr[4]/td/table/tbody/tr/td/font/a[4]").click()
             wait.until(EC.presence_of_element_located((By.XPATH, "/html/body/table[2]/tbody/tr[6]/td/table/tbody/tr/td/font/input[2]"))).click()
             # chromedriver.find_element(By.XPATH, "/html/body/table[2]/tbody/tr[6]/td/table/tbody/tr/td/font/input[2]").click()
             wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/table[2]/tbody/tr[8]/td/input'))).click()
             # chromedriver.find_element(By.XPATH, "/html/body/table[2]/tbody/tr[8]/td/input").click()
-            save_log("Navegação inicial concluída, iniciando processamento dos itens")
+            logger.info("Navegação inicial concluída, iniciando processamento dos itens")
             
             total_rows = len(tabela[tabela["Horario Processado"] != 'nan'])
             current_row = 0
@@ -466,10 +470,10 @@ def main(page: ft.Page):
                 hour = tabela.at[i, "Horario Processado"] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
                 ativo = tabela.at[i, "Ativo"] if "Ativo" in tabela.columns else ""
                 
-                save_log(f"Processando item {i+1}/{total_rows}: {série}, Tipo: {tipo}")
+                logger.info(f"Processando item {i+1}/{total_rows}: {série}, Tipo: {tipo}")
                 
                 if pd.isnull(série):
-                    save_log(f"Item {i+1} sem série, pulando")
+                    logger.info(f"Item {i+1} sem série, pulando")
                     
                     continue
                 
@@ -509,7 +513,7 @@ def main(page: ft.Page):
                             situacao = tabela.at[i, "Antigo Status"] = "Não encontrado"
                             hour = tabela.at[i, "Horario Processado"]
                             tabela.to_excel("Dados.xlsx", index=False)
-                            save_log(f"Item {i+1} não encontrado")
+                            logger.info(f"Item {i+1} não encontrado")
                             
                             # Atualizar contador e progresso
                             current_row += 1
@@ -524,7 +528,7 @@ def main(page: ft.Page):
                         
                         wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/table[2]/tbody/tr[6]/td/table/tbody/tr[6]/td[3]/font[1]')))
                         status_atual = chromedriver.find_element(By.XPATH, "/html/body/table[2]/tbody/tr[6]/td/table/tbody/tr[6]/td[3]/font[1]").text
-                        save_log(f"Status atual do item {i+1}: {status_atual}")
+                        logger.info(f"Status atual do item {i+1}: {status_atual}")
 
                         # NOVA LÓGICA: Verificar se o status é "Alocado" e pular
                         if "Alocado" in status_atual:
@@ -534,7 +538,7 @@ def main(page: ft.Page):
                             tabela.at[i, "Ativo"] = numero_ativo
                             tabela.at[i, "Antigo Status"] = status_atual
                             tabela.to_excel("Dados.xlsx", index=False)
-                            save_log(f"Item {i+1} está alocado, pulando")
+                            logger.info(f"Item {i+1} está alocado, pulando")
                             
                             # Volta para a página de pesquisa para processar o próximo item
                             wait.until(EC.element_to_be_clickable((By.XPATH, '/html/body/table[2]/tbody/tr[8]/td/a[1]/img'))).click()
