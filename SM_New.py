@@ -50,7 +50,7 @@ def main(page: ft.Page):
     page.title = "StatusManager"
 
     # Inicializar o logger
-    logger = Logger_Manager("robos_log.txt")
+    logger = Logger_Manager("robos_log.log")
     
     # Contador de progresso
     progress_counter = ft.Text(
@@ -777,21 +777,23 @@ def main(page: ft.Page):
     
     def login_function(e):
         # Animação do botão
-        login_button.bgcolor = ft.colors.YELLOW_700
-        login_button.content.controls[0].color = ft.colors.BLACK  # ícone
-        login_button.content.controls[1].color = ft.colors.BLACK  # texto
-        login_button.border = ft.border.all(2, ft.colors.YELLOW_700)
+        login_button.bgcolor = ft.Colors.YELLOW_700
+        login_button.content.controls[0].color = ft.Colors.BLACK  # ícone
+        login_button.content.controls[1].color = ft.Colors.BLACK  # texto
+        login_button.border = ft.border.all(2, ft.Colors.YELLOW_700)
         page.update()
         
-        # Volta ao estado original após animação
-        def reset(_):
-            login_button.bgcolor = ft.colors.TRANSPARENT
-            login_button.content.controls[0].color = ft.colors.YELLOW_700
-            login_button.content.controls[1].color = ft.colors.YELLOW_700
-            login_button.border = ft.border.all(2, ft.colors.YELLOW_700)
+        # Volta ao estado original após animação usando Timer simples
+        def reset_button():
+            login_button.bgcolor = ft.Colors.TRANSPARENT
+            login_button.content.controls[0].color = ft.Colors.YELLOW_700
+            login_button.content.controls[1].color = ft.Colors.YELLOW_700
+            login_button.border = ft.border.all(2, ft.Colors.YELLOW_700)
             page.update()
         
-        page.run_task(lambda: page.timer(0.25, reset))
+        # Usar threading.Timer em vez de page.run_task
+        timer = threading.Timer(0.25, reset_button)
+        timer.start()
         
         # Executar o processo de login em uma thread separada
         threading.Thread(target=process_login, daemon=True).start()
