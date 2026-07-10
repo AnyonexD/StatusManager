@@ -43,7 +43,7 @@ ATIVOS_URL = "https://adm.desktop.com.br/Ativos.jsp"
 MENU_URL = "https://adm.desktop.com.br/menu.jsp"
 MFA_URL = "https://desktop.sso.e-trust.com.br/mfa/login/validate"
 WHATSAPP_URL = "https://wa.me/5519920026971"
-APP_VERSION = "2.1.2"
+APP_VERSION = "2.1.3"
 GITHUB_LATEST_RELEASE_API = (
     "https://api.github.com/repos/AnyonexD/StatusManager/releases/latest"
 )
@@ -225,11 +225,22 @@ def _request_json(url, timeout=12):
         return json.loads(response.read().decode("utf-8"))
 
 
-def _download_file(url, target_path, timeout=60):
+def _download_file(url, target_path, timeout=60, progress_callback=None):
     req = urllib.request.Request(url, headers={"User-Agent": f"StatusManager/{APP_VERSION}"})
     with urllib.request.urlopen(req, timeout=timeout) as response:
+        total = int(response.headers.get("Content-Length") or 0)
+        downloaded = 0
         with open(target_path, "wb") as file:
-            shutil.copyfileobj(response, file)
+            while True:
+                chunk = response.read(1024 * 256)
+                if not chunk:
+                    break
+                file.write(chunk)
+                downloaded += len(chunk)
+                if progress_callback and total:
+                    progress_callback(downloaded, total)
+        if progress_callback and total:
+            progress_callback(total, total)
 
 
 def is_chromedriver_version_error(error):
@@ -309,7 +320,24 @@ del "%~f0" >nul 2>nul
     )
 
 
-def verificar_atualizacao_em_background(page, logger):
+def verificar_atualizacao_em_background(page, logger, info_text=None, progress_counter=None, progress_bar=None):
+    def set_update_progress(label, counter="", value=None, color=None):
+        try:
+            if info_text:
+                info_text.value = label
+            if progress_counter:
+                progress_counter.value = counter
+            if progress_bar and value is not None:
+                progress_bar.value = value
+            if progress_bar and color:
+                progress_bar.color = color
+            page.update()
+        except Exception as e:
+            logger.error(f"Erro ao atualizar progresso visual: {e}")
+
+    def reset_default_progress():
+        set_update_progress("Progresso:", "0/0", 0, ft.Colors.YELLOW_700)
+
     def worker():
         try:
             release = buscar_release_mais_recente(logger)
@@ -335,13 +363,21 @@ def verificar_atualizacao_em_background(page, logger):
             )
             if resposta != "Atualizar":
                 logger.info("Atualização recusada pelo usuário")
+                reset_default_progress()
                 return
 
             update_dir = os.path.join(tempfile.gettempdir(), "StatusManager_update")
             os.makedirs(update_dir, exist_ok=True)
             downloaded_exe = os.path.join(update_dir, UPDATE_ASSET_NAME)
             logger.info(f"Baixando atualização para: {downloaded_exe}")
-            _download_file(release["download_url"], downloaded_exe)
+            set_update_progress("Baixando atualização:", "0%", 0, ft.Colors.BLUE)
+
+            def on_download_progress(downloaded, total):
+                percent = int((downloaded / total) * 100) if total else 0
+                set_update_progress("Baixando atualização:", f"{percent}%", downloaded / total, ft.Colors.BLUE)
+
+            _download_file(release["download_url"], downloaded_exe, progress_callback=on_download_progress)
+            set_update_progress("Atualização baixada:", "100%", 1, ft.Colors.GREEN)
 
             py.alert(
                 "Atualização baixada com sucesso.\n\n"
@@ -352,6 +388,7 @@ def verificar_atualizacao_em_background(page, logger):
             page.window.close()
         except Exception as e:
             logger.error(f"Erro ao verificar atualização: {e}")
+            reset_default_progress()
 
     threading.Thread(target=worker, daemon=True).start()
 
@@ -1569,7 +1606,7 @@ def main(page: ft.Page):
         page.update()
 
     page.add(stack_main)
-    verificar_atualizacao_em_background(page, logger)
+    verificar_atualizacao_em_background(page, logger, info_text, progress_counter, progress_bar)
 
     # ---- Fade-in de entrada (em sequência) ----
     def _fade_in():
