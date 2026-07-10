@@ -27,7 +27,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, SessionNotCreatedException, WebDriverException
 
 import chromedriver_autoinstaller
 from dotenv import load_dotenv
@@ -48,6 +48,18 @@ GITHUB_LATEST_RELEASE_API = (
     "https://api.github.com/repos/AnyonexD/StatusManager/releases/latest"
 )
 UPDATE_ASSET_NAME = "StatusManager.exe"
+
+CHROME_UPDATE_MESSAGE = (
+    "Não foi possível iniciar o Google Chrome automaticamente.\n\n"
+    "Isso normalmente acontece quando o Google Chrome está desatualizado ou "
+    "quando a versão do ChromeDriver não é compatível com o Chrome instalado.\n\n"
+    "O que fazer:\n"
+    "1. Abra o Google Chrome.\n"
+    "2. Vá em Menu > Ajuda > Sobre o Google Chrome.\n"
+    "3. Aguarde a atualização terminar.\n"
+    "4. Feche e abra o Chrome novamente.\n"
+    "5. Abra o StatusManager e tente outra vez."
+)
 
 # ============================================================
 # PATH BASE (PyInstaller ou script normal)
@@ -218,6 +230,20 @@ def _download_file(url, target_path, timeout=60):
     with urllib.request.urlopen(req, timeout=timeout) as response:
         with open(target_path, "wb") as file:
             shutil.copyfileobj(response, file)
+
+
+def is_chromedriver_version_error(error):
+    text = str(error).lower()
+    version_error_terms = (
+        "session not created",
+        "this version of chromedriver only supports",
+        "only supports chrome version",
+        "chrome version must be",
+        "cannot find chrome binary",
+        "chrome failed to start",
+        "unable to obtain driver",
+    )
+    return any(term in text for term in version_error_terms)
 
 
 def buscar_release_mais_recente(logger=None):
@@ -959,13 +985,22 @@ def main(page: ft.Page):
 
         try:
             logger.info("Iniciando processo de automação com Chrome")
-            chromedriver_autoinstaller.install()
-            options = webdriver.ChromeOptions()
-            options.add_experimental_option("detach", True)
-            options.add_argument("--start-maximized")
-            options.add_argument("--allow-running-insecure-content")
-            options.add_argument("--allow-insecure-localhost")
-            chromedriver = webdriver.Chrome(options=options)
+            try:
+                chromedriver_autoinstaller.install()
+                options = webdriver.ChromeOptions()
+                options.add_experimental_option("detach", True)
+                options.add_argument("--start-maximized")
+                options.add_argument("--allow-running-insecure-content")
+                options.add_argument("--allow-insecure-localhost")
+                chromedriver = webdriver.Chrome(options=options)
+            except (SessionNotCreatedException, WebDriverException) as e:
+                logger.error(f"Erro ao iniciar Chrome/ChromeDriver: {e}")
+                if is_chromedriver_version_error(e):
+                    py.alert(CHROME_UPDATE_MESSAGE, title="Atualize o Google Chrome")
+                else:
+                    py.alert(f"Erro ao iniciar o Google Chrome:\n\n{e}", title="Erro no Chrome")
+                return
+
             wait = WebDriverWait(chromedriver, 30)
 
             login_decoded = username
