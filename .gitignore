@@ -1,0 +1,41 @@
+# Python/cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Local secrets
+.env
+.Logins/
+
+# Build artifacts
+build/
+dist/
+_archive/
+_release/
+*.exe
+*.zip
+*.7z
+*.rar
+*.msi
+
+# PyInstaller generated files/logs
+*.toc
+*.pkg
+*.pyz
+base_library.zip
+warn-*.txt
+xref-*.html
+
+# Local data files
+Dados.xlsx
+*.xlsx
+*.xls
+*.csv
+*.log
+
+# OS/editor noise
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
