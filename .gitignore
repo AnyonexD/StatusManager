@@ -28,8 +28,8 @@ warn-*.txt
 xref-*.html
 
 # Local data files
-Dados.xlsx
 *.xlsx
+!Dados.xlsx
 *.xls
 *.csv
 *.log
