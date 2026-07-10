@@ -246,6 +246,14 @@ def is_chromedriver_version_error(error):
     return any(term in text for term in version_error_terms)
 
 
+def excel_value_to_text(value):
+    if pd.isnull(value):
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
 def buscar_release_mais_recente(logger=None):
     release = _request_json(GITHUB_LATEST_RELEASE_API)
     latest_version = str(release.get("tag_name") or "").lstrip("v")
@@ -663,14 +671,14 @@ def processar_cadastro(chromedriver, wait, excel_path, update_progress, logger):
     update_progress(0, total)
 
     for i, row in tabela.iterrows():
-        id_ = row["ID"]
-        modelo = str(row["Modelo"]).upper()
-        ativo = row["Ativo"]
-        mac = row["Mac"]
-        sn = row["Serie"]
-        fsan = row["Fsan"]
-        observacao = row["Observacao"]
-        nota_fiscal = row["Nota Fiscal"]
+        id_ = excel_value_to_text(row.get("ID", ""))
+        modelo = excel_value_to_text(row.get("Modelo", "")).upper()
+        ativo = excel_value_to_text(row.get("Ativo", ""))
+        mac = excel_value_to_text(row.get("Mac", ""))
+        sn = excel_value_to_text(row.get("Serie", ""))
+        fsan = excel_value_to_text(row.get("Fsan", ""))
+        observacao = excel_value_to_text(row.get("Observacao", ""))
+        nota_fiscal = excel_value_to_text(row.get("Nota Fiscal", ""))
 
         logger.info(f"Cadastro {i + 1}/{total}: {modelo} - {ativo}")
 
@@ -746,7 +754,7 @@ def processar_cadastro(chromedriver, wait, excel_path, update_progress, logger):
                 campo.clear(); campo.send_keys(sn)
                 time.sleep(2)
 
-                if not pd.isnull(observacao):
+                if observacao:
                     wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="observacoes"]')))
                     chromedriver.find_element(By.XPATH, '//*[@id="observacoes"]').clear()
                     chromedriver.find_element(By.XPATH, '//*[@id="observacoes"]').send_keys(observacao)
@@ -772,7 +780,7 @@ def processar_cadastro(chromedriver, wait, excel_path, update_progress, logger):
 
             # --- CASO outros modelos ---
             elif modelo == modelo_atual.upper():
-                if pd.isnull(fsan):
+                if not fsan:
                     wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="codigo"]')))
                     chromedriver.find_element(By.XPATH, '//*[@id="codigo"]').clear()
                     chromedriver.find_element(By.XPATH, '//*[@id="mac"]').clear()
@@ -786,7 +794,7 @@ def processar_cadastro(chromedriver, wait, excel_path, update_progress, logger):
                     chromedriver.find_element(By.XPATH, '//*[@id="serial"]').send_keys(sn)
                     time.sleep(0.3)
 
-                    if not pd.isnull(observacao):
+                    if observacao:
                         wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="observacoes"]')))
                         chromedriver.find_element(By.XPATH, '//*[@id="observacoes"]').clear()
                         chromedriver.find_element(By.XPATH, '//*[@id="observacoes"]').send_keys(observacao)
@@ -805,11 +813,11 @@ def processar_cadastro(chromedriver, wait, excel_path, update_progress, logger):
                     wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="info"]'))).send_keys(fsan)
                     time.sleep(0.3)
 
-                    if not pd.isnull(observacao):
+                    if observacao:
                         wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="observacoes"]'))).clear()
                         wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="observacoes"]'))).send_keys(observacao)
 
-                if not pd.isnull(nota_fiscal):
+                if nota_fiscal:
                     chromedriver.find_element(By.XPATH, '//*[@id="nota"]').clear()
                     chromedriver.find_element(By.XPATH, '//*[@id="nota"]').send_keys(nota_fiscal)
 
@@ -937,9 +945,14 @@ def main(page: ft.Page):
     # ========================================================
 
     def process_login():
-        username = login_field.value
-        password = password_field.value
+        username = excel_value_to_text(login_field.value)
+        password = excel_value_to_text(password_field.value)
         selected_status = status_dropdown.value
+
+        if not username or not password:
+            py.alert("Informe login e senha antes de iniciar.", title="Credenciais obrigatórias")
+            restaurar_botao()
+            return
 
         if not selected_status:
             py.alert("Erro: É necessário escolher uma opção: 'Disponível', "
@@ -1085,14 +1098,16 @@ def main(page: ft.Page):
                 if tabela.at[i, "Horario Processado"] == "nan":
                     continue
 
-                tipo = tabela.at[i, "Tipo"] if "Tipo" in tabela.columns else ""
-                tipo = tipo.upper() if not pd.isnull(tipo) else ""
+                serie = excel_value_to_text(serie)
+                tipo = excel_value_to_text(tabela.at[i, "Tipo"]) if "Tipo" in tabela.columns else ""
+                tipo = tipo.upper()
                 tabela.at[i, "Horario Processado"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
                 logger.info(f"Processando item {i + 1}/{total_rows}: {serie}, Tipo: {tipo}")
 
-                if pd.isnull(serie):
+                if not serie:
                     logger.info(f"Item {i + 1} sem série, pulando")
+                    tabela.at[i, "Antigo Status"] = "Linha sem Ativo/Mac/Serie preenchido"
                     continue
 
                 try:
