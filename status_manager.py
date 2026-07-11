@@ -43,7 +43,7 @@ ATIVOS_URL = "https://adm.desktop.com.br/Ativos.jsp"
 MENU_URL = "https://adm.desktop.com.br/menu.jsp"
 MFA_URL = "https://desktop.sso.e-trust.com.br/mfa/login/validate"
 WHATSAPP_URL = "https://wa.me/5519920026971"
-APP_VERSION = "2.1.4"
+APP_VERSION = "2.1.5"
 GITHUB_LATEST_RELEASE_API = (
     "https://api.github.com/repos/AnyonexD/StatusManager/releases/latest"
 )
