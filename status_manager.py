@@ -43,7 +43,7 @@ ATIVOS_URL = "https://adm.desktop.com.br/Ativos.jsp"
 MENU_URL = "https://adm.desktop.com.br/menu.jsp"
 MFA_URL = "https://desktop.sso.e-trust.com.br/mfa/login/validate"
 WHATSAPP_URL = "https://wa.me/5519920026971"
-APP_VERSION = "2.1.3"
+APP_VERSION = "2.1.4"
 GITHUB_LATEST_RELEASE_API = (
     "https://api.github.com/repos/AnyonexD/StatusManager/releases/latest"
 )
@@ -290,31 +290,92 @@ def buscar_release_mais_recente(logger=None):
 def iniciar_atualizador(downloaded_exe, logger=None):
     current_exe = sys.executable
     app_dir = os.path.dirname(current_exe)
-    updater_path = os.path.join(tempfile.gettempdir(), "StatusManager_updater.bat")
+    update_dir = os.path.dirname(downloaded_exe)
+    log_path = os.path.join(update_dir, "updater.log")
+    parent_pid = os.getpid()
 
-    script = f"""@echo off
-setlocal
-set "TARGET={current_exe}"
-set "NEW={downloaded_exe}"
-timeout /t 2 /nobreak >nul
-:trycopy
-copy /Y "%NEW%" "%TARGET%" >nul
-if errorlevel 1 (
-    timeout /t 1 /nobreak >nul
-    goto trycopy
-)
-start "" "%TARGET%"
-del "%NEW%" >nul 2>nul
-del "%~f0" >nul 2>nul
+    ps_script = f"""
+$ErrorActionPreference = 'Stop'
+$target = {current_exe!r}
+$newExe = {downloaded_exe!r}
+$appDir = {app_dir!r}
+$logPath = {log_path!r}
+$parentPid = {parent_pid}
+
+function Write-UpdateLog($message) {{
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -LiteralPath $logPath -Value "$timestamp - $message" -Encoding UTF8
+}}
+
+try {{
+    Write-UpdateLog "Updater iniciado. Target=$target New=$newExe ParentPid=$parentPid"
+
+    try {{
+        $parent = Get-Process -Id $parentPid -ErrorAction Stop
+        Write-UpdateLog "Aguardando processo principal fechar."
+        Wait-Process -Id $parentPid -Timeout 45 -ErrorAction SilentlyContinue
+    }} catch {{
+        Write-UpdateLog "Processo principal nao encontrado ou ja fechado."
+    }}
+
+    if (-not (Test-Path -LiteralPath $newExe)) {{
+        throw "Arquivo baixado nao encontrado: $newExe"
+    }}
+
+    $newSize = (Get-Item -LiteralPath $newExe).Length
+    if ($newSize -lt 1000000) {{
+        throw "Arquivo baixado parece invalido. Tamanho=$newSize"
+    }}
+
+    $backup = "$target.old"
+    for ($attempt = 1; $attempt -le 60; $attempt++) {{
+        try {{
+            Write-UpdateLog "Tentativa $attempt de substituir o executavel."
+            if (Test-Path -LiteralPath $backup) {{
+                Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+            }}
+            if (Test-Path -LiteralPath $target) {{
+                Move-Item -LiteralPath $target -Destination $backup -Force
+            }}
+            Move-Item -LiteralPath $newExe -Destination $target -Force
+            Write-UpdateLog "Executavel substituido com sucesso."
+            break
+        }} catch {{
+            Write-UpdateLog "Falha na tentativa $attempt: $($_.Exception.Message)"
+            Start-Sleep -Seconds 1
+            if ($attempt -eq 60) {{
+                throw
+            }}
+        }}
+    }}
+
+    Start-Process -FilePath $target -WorkingDirectory $appDir
+    Write-UpdateLog "Nova versao iniciada."
+}} catch {{
+    Write-UpdateLog "ERRO: $($_.Exception.Message)"
+    Add-Type -AssemblyName PresentationFramework
+    [System.Windows.MessageBox]::Show(
+        "Nao foi possivel aplicar a atualizacao automaticamente.`n`nDetalhes: $($_.Exception.Message)`n`nLog: $logPath",
+        "StatusManager - Atualizacao",
+        "OK",
+        "Error"
+    ) | Out-Null
+}}
 """
-    with open(updater_path, "w", encoding="utf-8") as file:
-        file.write(script)
+    encoded_script = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
 
     if logger:
-        logger.info(f"Atualizador criado em: {updater_path}")
+        logger.info(f"Atualizador PowerShell preparado. Log: {log_path}")
 
     subprocess.Popen(
-        ["cmd", "/c", updater_path],
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encoded_script,
+        ],
         cwd=app_dir,
         creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
     )
