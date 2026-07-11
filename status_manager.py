@@ -43,7 +43,7 @@ ATIVOS_URL = "https://adm.desktop.com.br/Ativos.jsp"
 MENU_URL = "https://adm.desktop.com.br/menu.jsp"
 MFA_URL = "https://desktop.sso.e-trust.com.br/mfa/login/validate"
 WHATSAPP_URL = "https://wa.me/5519920026971"
-APP_VERSION = "2.1.5"
+APP_VERSION = "2.1.6"
 GITHUB_LATEST_RELEASE_API = (
     "https://api.github.com/repos/AnyonexD/StatusManager/releases/latest"
 )
@@ -287,6 +287,64 @@ def buscar_release_mais_recente(logger=None):
     return info
 
 
+def executar_modo_atualizador():
+    if len(sys.argv) < 4 or sys.argv[1] != "--apply-update":
+        return False
+
+    target_exe = sys.argv[2]
+    parent_pid = int(sys.argv[3])
+    source_exe = sys.executable
+    app_dir = os.path.dirname(target_exe)
+    update_dir = os.path.join(tempfile.gettempdir(), "StatusManager_update")
+    os.makedirs(update_dir, exist_ok=True)
+    log_path = os.path.join(update_dir, "updater.log")
+
+    def write_log(message):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, "a", encoding="utf-8") as file:
+            file.write(f"{timestamp} - {message}\n")
+
+    try:
+        write_log(f"Updater interno iniciado. Source={source_exe} Target={target_exe} ParentPid={parent_pid}")
+
+        for _ in range(60):
+            try:
+                os.kill(parent_pid, 0)
+                time.sleep(1)
+            except OSError:
+                break
+
+        backup_exe = f"{target_exe}.old"
+        for attempt in range(1, 61):
+            try:
+                write_log(f"Tentativa {attempt} de substituir o executavel.")
+                if os.path.exists(backup_exe):
+                    os.remove(backup_exe)
+                if os.path.exists(target_exe):
+                    os.replace(target_exe, backup_exe)
+                shutil.copy2(source_exe, target_exe)
+                write_log("Executavel substituido com sucesso.")
+                break
+            except Exception as error:
+                write_log(f"Falha na tentativa {attempt}: {error}")
+                if attempt == 60:
+                    raise
+                time.sleep(1)
+
+        subprocess.Popen([target_exe], cwd=app_dir)
+        write_log("Nova versao iniciada.")
+    except Exception as error:
+        write_log(f"ERRO: {error}")
+        py.alert(
+            "Nao foi possivel aplicar a atualizacao automaticamente.\n\n"
+            f"Detalhes: {error}\n\n"
+            f"Log: {log_path}",
+            title="StatusManager - Atualizacao",
+        )
+
+    return True
+
+
 def iniciar_atualizador(downloaded_exe, logger=None):
     current_exe = sys.executable
     app_dir = os.path.dirname(current_exe)
@@ -294,90 +352,17 @@ def iniciar_atualizador(downloaded_exe, logger=None):
     log_path = os.path.join(update_dir, "updater.log")
     parent_pid = os.getpid()
 
-    ps_script = f"""
-$ErrorActionPreference = 'Stop'
-$target = {current_exe!r}
-$newExe = {downloaded_exe!r}
-$appDir = {app_dir!r}
-$logPath = {log_path!r}
-$parentPid = {parent_pid}
-
-function Write-UpdateLog($message) {{
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Add-Content -LiteralPath $logPath -Value "$timestamp - $message" -Encoding UTF8
-}}
-
-try {{
-    Write-UpdateLog "Updater iniciado. Target=$target New=$newExe ParentPid=$parentPid"
-
-    try {{
-        $parent = Get-Process -Id $parentPid -ErrorAction Stop
-        Write-UpdateLog "Aguardando processo principal fechar."
-        Wait-Process -Id $parentPid -Timeout 45 -ErrorAction SilentlyContinue
-    }} catch {{
-        Write-UpdateLog "Processo principal nao encontrado ou ja fechado."
-    }}
-
-    if (-not (Test-Path -LiteralPath $newExe)) {{
-        throw "Arquivo baixado nao encontrado: $newExe"
-    }}
-
-    $newSize = (Get-Item -LiteralPath $newExe).Length
-    if ($newSize -lt 1000000) {{
-        throw "Arquivo baixado parece invalido. Tamanho=$newSize"
-    }}
-
-    $backup = "$target.old"
-    for ($attempt = 1; $attempt -le 60; $attempt++) {{
-        try {{
-            Write-UpdateLog "Tentativa $attempt de substituir o executavel."
-            if (Test-Path -LiteralPath $backup) {{
-                Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
-            }}
-            if (Test-Path -LiteralPath $target) {{
-                Move-Item -LiteralPath $target -Destination $backup -Force
-            }}
-            Move-Item -LiteralPath $newExe -Destination $target -Force
-            Write-UpdateLog "Executavel substituido com sucesso."
-            break
-        }} catch {{
-            Write-UpdateLog "Falha na tentativa $attempt: $($_.Exception.Message)"
-            Start-Sleep -Seconds 1
-            if ($attempt -eq 60) {{
-                throw
-            }}
-        }}
-    }}
-
-    Start-Process -FilePath $target -WorkingDirectory $appDir
-    Write-UpdateLog "Nova versao iniciada."
-}} catch {{
-    Write-UpdateLog "ERRO: $($_.Exception.Message)"
-    Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show(
-        "Nao foi possivel aplicar a atualizacao automaticamente.`n`nDetalhes: $($_.Exception.Message)`n`nLog: $logPath",
-        "StatusManager - Atualizacao",
-        "OK",
-        "Error"
-    ) | Out-Null
-}}
-"""
-    encoded_script = base64.b64encode(ps_script.encode("utf-16le")).decode("ascii")
-
     if logger:
-        logger.info(f"Atualizador PowerShell preparado. Log: {log_path}")
+        logger.info(f"Iniciando atualizador interno. Log: {log_path}")
 
     subprocess.Popen(
         [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-EncodedCommand",
-            encoded_script,
+            downloaded_exe,
+            "--apply-update",
+            current_exe,
+            str(parent_pid),
         ],
         cwd=app_dir,
-        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
     )
 
 
@@ -447,6 +432,8 @@ def verificar_atualizacao_em_background(page, logger, info_text=None, progress_c
             )
             iniciar_atualizador(downloaded_exe, logger)
             page.window.close()
+            time.sleep(0.5)
+            os._exit(0)
         except Exception as e:
             logger.error(f"Erro ao verificar atualização: {e}")
             reset_default_progress()
@@ -1680,4 +1667,5 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main, assets_dir="assets")
+    if not executar_modo_atualizador():
+        ft.app(target=main, assets_dir="assets")
