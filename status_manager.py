@@ -44,7 +44,7 @@ ATIVOS_URL = "https://adm.desktop.com.br/Ativos.jsp"
 MENU_URL = "https://adm.desktop.com.br/menu.jsp"
 MFA_URL = "https://desktop.sso.e-trust.com.br/mfa/login/validate"
 WHATSAPP_URL = "https://wa.me/5519920026971"
-APP_VERSION = "2.1.8"
+APP_VERSION = "2.1.9"
 GITHUB_LATEST_RELEASE_API = (
     "https://api.github.com/repos/AnyonexD/StatusManager/releases/latest"
 )
@@ -308,12 +308,9 @@ def executar_modo_atualizador():
     try:
         write_log(f"Updater interno iniciado. Source={source_exe} Target={target_exe} ParentPid={parent_pid}")
 
-        for _ in range(60):
-            try:
-                os.kill(parent_pid, 0)
-                time.sleep(1)
-            except OSError:
-                break
+        # Aguarda um instante e deixa as tentativas de troca abaixo lidarem
+        # com o tempo real de liberação do executável antigo no Windows.
+        time.sleep(2)
 
         backup_exe = f"{target_exe}.old"
         for attempt in range(1, 61):
