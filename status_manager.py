@@ -15,6 +15,7 @@ import subprocess
 import threading
 import webbrowser
 import urllib.request
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -444,17 +445,56 @@ def verificar_atualizacao_em_background(page, logger, info_text=None, progress_c
 # CREDENCIAIS
 # ============================================================
 
+def _set_env_values_preserving_file(env_path, values):
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as file:
+            content = file.read()
+    else:
+        content = ""
+
+    newline = "\r\n" if "\r\n" in content else "\n"
+    lines = content.splitlines(keepends=True)
+    updated_keys = set()
+    key_pattern = re.compile(r"^(\s*(?:export\s+)?(?P<key>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*)(.*?)(\r?\n)?$")
+
+    for index, line in enumerate(lines):
+        match = key_pattern.match(line)
+        if not match:
+            continue
+
+        key = match.group("key")
+        if key in values:
+            line_ending = match.group(4) or ""
+            lines[index] = f"{match.group(1)}{values[key]}{line_ending}"
+            updated_keys.add(key)
+
+    if lines and not lines[-1].endswith(("\n", "\r")):
+        lines[-1] = f"{lines[-1]}{newline}"
+
+    for key, value in values.items():
+        if key not in updated_keys:
+            lines.append(f"{key}={value}{newline}")
+
+    if not lines:
+        lines = [f"{key}={value}{newline}" for key, value in values.items()]
+
+    temp_path = f"{env_path}.tmp"
+    with open(temp_path, "w", encoding="utf-8", newline="") as file:
+        file.write("".join(lines))
+    os.replace(temp_path, env_path)
+
+
 def save_credentials(username, password, remember, logger):
     if not (remember and username and password):
         return False
 
     try:
         env_path = get_env_path(logger)
-        temp_path = f"{env_path}.tmp"
-        with open(temp_path, "w", encoding="utf-8") as f:
-            f.write(f"LOGINADM={base64.b64encode(username.encode()).decode()}\n")
-            f.write(f"SENHAADM={base64.b64encode(password.encode()).decode()}\n")
-        os.replace(temp_path, env_path)
+        values = {
+            "LOGINADM": base64.b64encode(username.encode()).decode(),
+            "SENHAADM": base64.b64encode(password.encode()).decode(),
+        }
+        _set_env_values_preserving_file(env_path, values)
         logger.info(f"Credenciais salvas com sucesso em: {env_path}")
         return True
     except Exception as e:
